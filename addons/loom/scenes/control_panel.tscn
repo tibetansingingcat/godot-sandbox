@@ -1,0 +1,80 @@
+[gd_scene load_steps=2 format=3 uid="uid://b22pne6kob3gl"]
+
+[ext_resource type="Script" uid="uid://dg30tyv2rdosr" path="res://addons/loom/scripts/control_panel.gd" id="1_bojnj"]
+
+[node name="LoomControl" type="VBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -837.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+script = ExtResource("1_bojnj")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 2
+text = "Loom"
+
+[node name="GlobalTerrainSize" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="GlobalTerrainSizeLabel" type="Label" parent="GlobalTerrainSize"]
+layout_mode = 2
+text = "Global Terrain Size"
+
+[node name="GlobalTerrainFields" type="HBoxContainer" parent="GlobalTerrainSize"]
+layout_mode = 2
+
+[node name="GlobalX" type="SpinBox" parent="GlobalTerrainSize/GlobalTerrainFields"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 10240.0
+
+[node name="GlobalXLabel" type="Label" parent="GlobalTerrainSize/GlobalTerrainFields"]
+layout_mode = 2
+text = "x"
+
+[node name="GlobalY" type="SpinBox" parent="GlobalTerrainSize/GlobalTerrainFields"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 10240.0
+
+[node name="GlobalYLabel" type="Label" parent="GlobalTerrainSize/GlobalTerrainFields"]
+layout_mode = 2
+text = "y"
+
+[node name="Sectors" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 45
+alignment = 1
+
+[node name="SectorsLabel" type="Label" parent="Sectors"]
+layout_mode = 2
+text = "Sector Count"
+
+[node name="SectorsFields" type="HBoxContainer" parent="Sectors"]
+layout_mode = 2
+
+[node name="SectorsX" type="SpinBox" parent="Sectors/SectorsFields"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SectorsXLabel" type="Label" parent="Sectors/SectorsFields"]
+layout_mode = 2
+text = "x"
+
+[node name="SectorsY" type="SpinBox" parent="Sectors/SectorsFields"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SectorsYLabel" type="Label" parent="Sectors/SectorsFields"]
+layout_mode = 2
+text = "y"
+
+[node name="CreateTerrainButton" type="Button" parent="."]
+layout_mode = 2
+text = "Create Terrain"
+
+[connection signal="pressed" from="CreateTerrainButton" to="." method="_on_create_terrain_button_pressed"]
