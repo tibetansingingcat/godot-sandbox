@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [debug]
 
+file_logging/enable_file_logging=true
 gdscript/warnings/untyped_declaration=2
 
 [editor_plugins]
@@ -75,7 +76,3 @@ view_down={
 common/physics_ticks_per_second=30
 3d/default_gravity=14.0
 common/physics_interpolation=true
-
-[rendering]
-
-rendering_device/driver="metal"

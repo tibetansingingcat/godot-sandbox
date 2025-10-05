@@ -22,9 +22,12 @@ var tool: Tool
 var editor_selection: EditorSelection
 var last_affected_sectors: Array[SectorNode] = []
 
+var undo_redo: EditorUndoRedoManager
+var sculpt_start_meshes: Dictionary[SectorNode, ArrayMesh] = {} # Store meshes at start of stroke
 
 func _init():
   if Engine.is_editor_hint():
+    undo_redo = EditorInterface.get_editor_undo_redo()
     editor_selection = EditorInterface.get_selection()
     editor_selection.selection_changed.connect(_on_selection_changed)
     
@@ -82,25 +85,73 @@ func handle_3d_input(camera: Camera3D, event: InputEvent) -> int:
     update_brush_preview(camera, event.position)
     
     if is_sculpting:
+      var affected = get_sectors_in_brush(get_terrain_hit_position(camera, event.position))
+      for sector in affected:
+        if sculpt_start_meshes.has(sector): 
+          continue
+        sculpt_start_meshes[sector] = sector.variants[sector.active_variant].mesh.duplicate()
       sculpt_at_position(camera, event.position)
+      print("sculpt_start_meshes size: ", sculpt_start_meshes.size())
       return EditorPlugin.AFTER_GUI_INPUT_STOP
   
   elif event is InputEventMouseButton:
     if event.button_index == MOUSE_BUTTON_LEFT:
       if event.pressed:
         is_sculpting = true
+        var affected = get_sectors_in_brush(get_terrain_hit_position(camera, event.position))
+        for sector in affected:
+          sculpt_start_meshes[sector] = sector.variants[sector.active_variant].mesh.duplicate()
+          
         sculpt_at_position(camera, event.position)
         return EditorPlugin.AFTER_GUI_INPUT_STOP
       else:
         is_sculpting = false
         update_collision_for_affected_sectors()
+        finalize_sculpt_stroke()
         return EditorPlugin.AFTER_GUI_INPUT_STOP
     
   return EditorPlugin.AFTER_GUI_INPUT_PASS
   
+func finalize_sculpt_stroke():
+  if sculpt_start_meshes.is_empty():
+    return
+    
+  print("Creating undo action for ", sculpt_start_meshes.size(), " sectors")
+  undo_redo.create_action("Sculpt Terrain")
+  
+  for sector: SectorNode in sculpt_start_meshes.keys():
+    var variant = sector.variants[sector.active_variant]
+    var old_mesh = sculpt_start_meshes[sector]
+    var new_mesh = variant.mesh.duplicate()
+    
+    # Verify sector is still valid
+    if not is_instance_valid(sector) or not sector.is_inside_tree():
+      continue
+    
+    if not new_mesh or not new_mesh.get_surface_count() > 0:
+      push_error("Invalid mesh duplication!")
+      continue
+    
+    undo_redo.add_do_property(variant, "mesh", new_mesh)
+    undo_redo.add_undo_property(variant, "mesh", old_mesh)
+    
+    undo_redo.add_do_method(sector, "refresh_mesh_display")
+    undo_redo.add_undo_method(sector, "refresh_mesh_display")
+    
+  undo_redo.commit_action()
+  sculpt_start_meshes.clear()
+  
 func update_collision_for_affected_sectors():
   print("Updating collision...")
   for sector in last_affected_sectors:
+    if not is_instance_valid(sector) or not sector.is_inside_tree():
+      print("Skipping invalid sector")
+      continue
+      
+    if not sector.mesh_instance:
+      print("Skipping sector with no mesh_instance")
+      continue
+      
     # Clear old collision
     for child in sector.mesh_instance.get_children():
       sector.mesh_instance.remove_child(child)
@@ -133,15 +184,21 @@ func get_terrain_hit_position(camera: Camera3D, mouse_pos: Vector2) -> Vector3:
 
 func update_brush_preview(camera: Camera3D, mouse_pos: Vector2):
   if not current_terrain_root or not current_terrain_root.is_inside_tree():
-    print("No terrain root or not in tree")
+    return
+    
+  if current_terrain_root.get_child_count() == 0:
     return
     
   var hit_pos = get_terrain_hit_position(camera, mouse_pos)
   if hit_pos != Vector3.INF:
     if not brush_preview:
       setup_brush_preview()
-    if not brush_preview.get_parent():
+    if not brush_preview.get_parent() or brush_preview.get_parent() != current_terrain_root:
+      if brush_preview.get_parent():
+        brush_preview.get_parent().remove_child(brush_preview)
       current_terrain_root.add_child(brush_preview)
+    if not brush_preview.owner:
+      brush_preview.owner = current_terrain_root
       
     brush_preview.global_position = hit_pos
     brush_preview.visible = true
@@ -204,6 +261,10 @@ func get_sectors_in_brush(world_pos: Vector3) -> Array[SectorNode]:
       )
       if is_valid_sector(check_coords) and not seen_coords.has(check_coords):
         var sector = current_terrain_root.get_sector(check_coords.x, check_coords.y)
+        
+        if not is_instance_valid(sector) or not sector.is_inside_tree():
+          continue
+        
         if brush_overlaps_sector(world_pos, sector):
           sectors.append(sector)
           seen_coords[check_coords] = true
@@ -235,8 +296,8 @@ func sculpt_at_position(camera: Camera3D, mouse_pos: Vector2):
   last_affected_sectors = affected_sectors
 
 func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3):
-  print("Variants count: ", sector.variants.size())
-  print("Active variant: ", sector.active_variant)
+  var nx = int(sector.sector_size_x / sector.resolution)
+  var ny = int(sector.sector_size_y / sector.resolution)
   
   if sector.variants.is_empty():
     print("ERROR: No variants available!")
@@ -257,6 +318,32 @@ func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3):
         vertex.y += brush_strength * falloff * SCULPT_SPEED
       Tool.LOWER:
         vertex.y -= brush_strength * falloff * SCULPT_SPEED
+      Tool.FLATTEN:
+        if local_pos.y != NAN:
+          vertex.y = lerpf(vertex.y, local_pos.y, SCULPT_SPEED)
+      Tool.SMOOTH:
+        # Convert flat index to grid coordinates
+        var x = i % (nx + 1) # We're finding the remainder after we divide by the length of x
+        var y = i / (nx + 1) # We're finding the number of times the length of x fully goes into i
+        if x == 0 or x == nx or y == 0 or y == ny: continue
+        var neighbor_sum = 0.0
+        var neighbor_count = 4
+        #if x > 0: # We have a neighbor vertex to the left
+        neighbor_sum += vertices[i - 1].y
+        #neighbor_count += 1
+        #if x < nx: # We have a neighbor vertex to the right
+        neighbor_sum += vertices[i + 1].y
+        #neighbor_count += 1
+        #if y > 0: # We have a neighbor vertex above
+        neighbor_sum += vertices[i - (nx + 1)].y
+        #neighbor_count += 1
+        #if y < ny: # We have a neighbor vertex below
+        neighbor_sum += vertices[i + (nx + 1)].y
+        #neighbor_count += 1
+        
+        #if neighbor_count > 0:
+        var average = neighbor_sum / neighbor_count
+        vertex.y = lerpf(vertex.y, average, falloff * SCULPT_SPEED)
     vertices[i] = vertex
     
   update_mesh(sector, arrays, vertices)

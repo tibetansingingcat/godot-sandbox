@@ -1,8 +1,0 @@
-[gd_resource type="Resource" script_class="SectorVariant" load_steps=3 format=3 uid="uid://4kgarksh8xbc"]
-
-[ext_resource type="ArrayMesh" uid="uid://3fkk1x084hmy" path="res://terrain/sector_0_0_variant0_mesh.tres" id="1_k4e2p"]
-[ext_resource type="Script" uid="uid://b5178r3pfyat3" path="res://addons/loom/scripts/sector_variant.gd" id="2_o74i3"]
-
-[resource]
-script = ExtResource("2_o74i3")
-mesh = ExtResource("1_k4e2p")

@@ -31,6 +31,7 @@ func _ready():
     
 func _initialize_sector():
     var scene_root := get_tree().edited_scene_root
+    print("Initializing sector")
     
     # CRITICAL: Remove any MeshInstance3D that was saced with the scene
     for child in get_children():
@@ -238,9 +239,6 @@ func set_variant(index: int):
   if index < 0 or index >= variants.size():
     return
     
-  print("=== SET_VARIANT START ===")
-  print("Children before removal: ", get_child_count())
-  
   active_variant = index
   var v: SectorVariant = variants[active_variant]
   var scene_root := get_tree().edited_scene_root
@@ -248,7 +246,6 @@ func set_variant(index: int):
   # --- 1. Remove current non-mesh children
   var children_to_remove = []
   for child in get_children():
-    print("  Checking child: ", child.name, " (", child.get_class(), ")")
     if child != mesh_instance:
       children_to_remove.append(child)
   
@@ -256,14 +253,9 @@ func set_variant(index: int):
     remove_child(child)
     child.queue_free()
   
-  print("Children after removal: ", get_child_count())
-
   # --- 2. Ensure mesh_instance exists in tree
   if mesh_instance.get_parent() != self:
-    print("Adding mesh_instance to tree")
     add_child(mesh_instance)
-    #if scene_root:
-      #mesh_instance.owner = scene_root
 
   # --- 3. Apply mesh and material
   mesh_instance.mesh = v.mesh
@@ -272,25 +264,23 @@ func set_variant(index: int):
 
   # --- 4. Restore children from scene
   var children_path = "res://terrain/sector_%d_%d_variant%d_children.tscn" % [sector_coords.x, sector_coords.y, active_variant]
-  print("Loading children from: ", children_path)
   if FileAccess.file_exists(children_path):
     var ps: PackedScene = load(children_path)
     if ps:
       var inst = ps.instantiate()
       if inst:
-        print("Instantiated scene has ", inst.get_child_count(), " children")
-        for child in inst.get_children():
-          print("  Child to move: ", child.name, " (", child.get_class(), ")")
         move_children_recursive(inst, self, scene_root)
         inst.queue_free()
   
-  print("Final children count: ", get_child_count())
-  print("=== SET_VARIANT END ===")
-
   emit_signal("active_variant_changed", active_variant)
   
 func cycle_variant():
   set_variant((active_variant + 1) % variants.size())
+  
+func refresh_mesh_display():
+  print("Refreshing mesh display")
+  if mesh_instance and variants and active_variant < variants.size():
+    mesh_instance.mesh = variants[active_variant].mesh
 
 func setup_terrain_material():
   terrain_material = ShaderMaterial.new()
