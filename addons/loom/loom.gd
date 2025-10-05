@@ -7,17 +7,19 @@ var sculpt_dock
 var sculpting_handler
 
 func _enter_tree():
-    terrain_inspector = preload("res://addons/loom/scripts/terrain_root_inspector.gd").new()
-    add_inspector_plugin(terrain_inspector)
-    sector_node_inspector = preload("res://addons/loom/scripts/sector_node_inspector.gd").new()
-    add_inspector_plugin(sector_node_inspector)
+  terrain_inspector = preload("res://addons/loom/scripts/terrain_root_inspector.gd").new()
+  add_inspector_plugin(terrain_inspector)
     
-    sculpt_dock = preload("res://addons/loom/scripts/sculpt_dock.gd").new()
-    add_control_to_dock(DOCK_SLOT_LEFT_UL, sculpt_dock)
+  sector_node_inspector = preload("res://addons/loom/scripts/sector_node_inspector.gd").new()
+  add_inspector_plugin(sector_node_inspector)
     
-    sculpting_handler = preload("res://addons/loom/scripts/sculpting_handler.gd").new()
-    sculpting_handler.set_dock_ui(sculpt_dock)
-    sculpt_dock.sculpting_handler = sculpting_handler
+  sculpt_dock = preload("res://addons/loom/scripts/sculpt_dock.gd").new()
+  add_control_to_dock(DOCK_SLOT_LEFT_UL, sculpt_dock)
+  
+  sculpting_handler = preload("res://addons/loom/scripts/sculpting_handler.gd").new()
+  sculpting_handler.set_dock_ui(sculpt_dock)
+  sculpt_dock.sculpting_handler = sculpting_handler
+  pass
     
 func _handles(object: Object) -> bool:
   return object is TerrainRoot

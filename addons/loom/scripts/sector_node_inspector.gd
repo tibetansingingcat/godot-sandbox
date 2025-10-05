@@ -9,7 +9,6 @@ func _can_handle(obj):
   
 func _parse_begin(obj):
   sector_node = obj as SectorNode
-  print(sector_node, sector_node.get_class(), sector_node.get_script())
   sector_node.variants
   var button = Button.new()
   button.text = "Create variant"

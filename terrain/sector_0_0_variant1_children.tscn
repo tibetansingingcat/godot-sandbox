@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://5hhr6x21p3ej"]
+
+[node name="VariantRoot" type="Node3D"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 2, 4)

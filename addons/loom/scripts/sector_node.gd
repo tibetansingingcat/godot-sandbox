@@ -10,46 +10,74 @@ signal variants_changed
 signal active_variant_changed(index: int)
 
 # Configuration
-var sector_size_x: int
-var sector_size_y: int
-var resolution: float
-var sector_coords: Vector2i
+@export var sector_size_x: int
+@export var sector_size_y: int
+@export var resolution: float
+@export var sector_coords: Vector2i
 var freshly_created := true
 
 var mesh_instance: MeshInstance3D
 var terrain_material: ShaderMaterial
 
+var _ready_called = false
+
 func _ready():
+  if _ready_called:
+    return
+  _ready_called = true
+  
   if Engine.is_editor_hint():
+    _initialize_sector.call_deferred()
+    
+func _initialize_sector():
     var scene_root := get_tree().edited_scene_root
     
-    # Check if mesh_instance already exists as a child (loaded from scene)
-    if not mesh_instance:
-      for child in get_children():
-        if child is MeshInstance3D:
-          mesh_instance = child
-          break
-          
-    # If mesh_instance exists but isn't a child yet, add it
-    if mesh_instance and not mesh_instance.get_parent():
-      add_child(mesh_instance)
-      if scene_root:
-        mesh_instance.owner = scene_root
+    # CRITICAL: Remove any MeshInstance3D that was saced with the scene
+    for child in get_children():
+      if child is MeshInstance3D:
+        print("Removing stale MeshInstance3D from the scene tree")
+        child.owner = null
+        remove_child(child)
+        child.queue_free()
+        
+    mesh_instance = MeshInstance3D.new()
     
+    ## Check if mesh_instance already exists as a child (loaded from scene)
+    #if not mesh_instance:
+      #mesh_instance = MeshInstance3D.new()
+      #add_child(mesh_instance)
+      #if scene_root:
+        #mesh_instance.owner = scene_root
+          
     # Always ensure material is set up
     if not terrain_material:
       setup_terrain_material()
       
-    # Apply material
-    if terrain_material and mesh_instance:
-      mesh_instance.material_override = terrain_material
-        
     if not self.owner and scene_root:
       self.owner = scene_root
-      if freshly_created:
-        print("Creating first variant")
-        create_variant()
-        freshly_created = false
+      
+    # Try to load saved variants
+    var variant_index = 0
+    while true:
+      var variant_path = "res://terrain/sector_%d_%d_variant%d.tres" % [sector_coords.x, sector_coords.y, variant_index]
+      if FileAccess.file_exists(variant_path):
+        var saved_variant = load(variant_path) as SectorVariant
+        if saved_variant:
+          variants.append(saved_variant)
+          print("Loaded variant %d for sector %s" % [variant_index, sector_coords])
+          variant_index += 1
+        else:
+          break
+      else:
+        break
+        
+    if not variants.is_empty():
+      set_variant(active_variant)
+      freshly_created = false
+    elif freshly_created:
+      print("Creating first variant")
+      create_variant()
+      freshly_created = false
 
 # Recursively set ownership for all children
 func set_ownership_recursive(p_owner: Node, node: Node):
@@ -64,18 +92,13 @@ func set_ownership_recursive(p_owner: Node, node: Node):
 func move_children_recursive(source: Node, target: Node, scene_root: Node):
   while source.get_child_count() > 0:
     var child = source.get_child(0)
+    if child is MeshInstance3D:
+      print("This is probably where this is breaking.")
     child.owner = null
     child.reparent(target, false)
     if scene_root:
       set_ownership_recursive(scene_root, child)
 
-func _init(sector_size_x: int = 128, sector_size_y: int = 128, resolution: float = 1.0, sector_coords: Vector2i = Vector2i(), position: Vector3 = Vector3.ZERO):
-  self.sector_size_x = sector_size_x
-  self.sector_size_y = sector_size_y
-  self.resolution = resolution
-  self.sector_coords = sector_coords
-  self.position = position
-  
 func save_current():
   save_variant(active_variant)
   
@@ -157,7 +180,9 @@ func create_variant():
   emit_signal("variants_changed")
     
 func add_variant(mesh: ArrayMesh):
-  variants.append(SectorVariant.new(mesh))
+  var new_variant = SectorVariant.new()
+  new_variant.mesh = mesh
+  variants.append(new_variant)
   if variants.size() == 1:
     set_variant(0)
     
@@ -213,46 +238,54 @@ func set_variant(index: int):
   if index < 0 or index >= variants.size():
     return
     
-  print("Changing active variant from %d to %d" % [active_variant, index])
+  print("=== SET_VARIANT START ===")
+  print("Children before removal: ", get_child_count())
+  
   active_variant = index
   var v: SectorVariant = variants[active_variant]
   var scene_root := get_tree().edited_scene_root
 
-  # --- 1. Apply mesh
-  mesh_instance.mesh = v.mesh
-
-  # --- 2. Remove current non-mesh children
+  # --- 1. Remove current non-mesh children
   var children_to_remove = []
   for child in get_children():
+    print("  Checking child: ", child.name, " (", child.get_class(), ")")
     if child != mesh_instance:
       children_to_remove.append(child)
   
   for child in children_to_remove:
     remove_child(child)
     child.queue_free()
+  
+  print("Children after removal: ", get_child_count())
 
-  # --- 3. Restore children from scene
+  # --- 2. Ensure mesh_instance exists in tree
+  if mesh_instance.get_parent() != self:
+    print("Adding mesh_instance to tree")
+    add_child(mesh_instance)
+    #if scene_root:
+      #mesh_instance.owner = scene_root
+
+  # --- 3. Apply mesh and material
+  mesh_instance.mesh = v.mesh
+  if terrain_material:
+    mesh_instance.material_override = terrain_material
+
+  # --- 4. Restore children from scene
   var children_path = "res://terrain/sector_%d_%d_variant%d_children.tscn" % [sector_coords.x, sector_coords.y, active_variant]
+  print("Loading children from: ", children_path)
   if FileAccess.file_exists(children_path):
     var ps: PackedScene = load(children_path)
     if ps:
       var inst = ps.instantiate()
       if inst:
-        # Move all children from the instantiated scene to this sector
+        print("Instantiated scene has ", inst.get_child_count(), " children")
+        for child in inst.get_children():
+          print("  Child to move: ", child.name, " (", child.get_class(), ")")
         move_children_recursive(inst, self, scene_root)
         inst.queue_free()
-      else:
-        push_warning("Failed to instantiate children scene at %s" % children_path)
-    else:
-      push_warning("Failed to load children scene at %s" % children_path)
-  else:
-    push_warning("No saved children scene for variant %d" % index)
-    
-  if terrain_material:
-    mesh_instance.material_override = terrain_material
   
-  print("set_variant complete. mesh_instance.mesh is null: ", mesh_instance.mesh == null)
-  print("mesh_instance parent: ", mesh_instance.get_parent())
+  print("Final children count: ", get_child_count())
+  print("=== SET_VARIANT END ===")
 
   emit_signal("active_variant_changed", active_variant)
   

@@ -4,6 +4,3 @@ class_name SectorVariant
 
 @export var variant_name: String
 @export var mesh: ArrayMesh
-
-func _init(mesh: ArrayMesh):
-  self.mesh = mesh

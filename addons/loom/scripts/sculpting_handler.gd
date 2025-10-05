@@ -47,6 +47,8 @@ func _on_selection_changed():
         current_terrain_root = parent
         print("Selected TerrainRoot: ", parent.name)
         break
+      parent = parent.get_parent()
+      
       if current_terrain_root:
         break
   if not current_terrain_root:
@@ -59,6 +61,8 @@ func handles(object) -> bool:
   return false
   
 func get_sector_at_postion(world_pos: Vector3) -> SectorNode:
+  if not current_terrain_root or not current_terrain_root.is_inside_tree():
+    return
   var local_pos = current_terrain_root.to_local(world_pos)
   
   var sector_x = int(local_pos.x / current_terrain_root.sector_size_x)
@@ -133,21 +137,15 @@ func update_brush_preview(camera: Camera3D, mouse_pos: Vector2):
     return
     
   var hit_pos = get_terrain_hit_position(camera, mouse_pos)
-  print("Hit pos: ", hit_pos)
   if hit_pos != Vector3.INF:
     if not brush_preview:
-      print("Creating brush preview")
       setup_brush_preview()
     if not brush_preview.get_parent():
-      print("Adding brush preview to terrain root")
       current_terrain_root.add_child(brush_preview)
       
-    print("Setting brush preview global position to: ", hit_pos)
     brush_preview.global_position = hit_pos
     brush_preview.visible = true
-    print("Brush preview visible: ", brush_preview.visible)
   else:
-    print("hit pos is INF, hiding brush")
     if brush_preview:
       brush_preview.visible = false
     
@@ -195,6 +193,7 @@ func get_sectors_in_brush(world_pos: Vector3) -> Array[SectorNode]:
   # Start with the sector we hit
   var center_sector = get_sector_at_postion(world_pos)
   if not center_sector:
+    print("ERROR: No center sector for sculpting.")
     return sectors
   
   for dx in range(-1, 2):
@@ -236,6 +235,13 @@ func sculpt_at_position(camera: Camera3D, mouse_pos: Vector2):
   last_affected_sectors = affected_sectors
 
 func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3):
+  print("Variants count: ", sector.variants.size())
+  print("Active variant: ", sector.active_variant)
+  
+  if sector.variants.is_empty():
+    print("ERROR: No variants available!")
+    return
+    
   var array_mesh: ArrayMesh = sector.variants[sector.active_variant].mesh
   var arrays = array_mesh.surface_get_arrays(0)
   
