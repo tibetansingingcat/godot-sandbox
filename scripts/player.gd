@@ -1,11 +1,17 @@
 extends CharacterBody3D
 
+enum MovementMode { GROUND, AIR, GLIDE }
+var mode := MovementMode.GROUND
 @onready var camera := $CameraRig/Camera3D
 @onready var anim_player: AnimationPlayer = $Mesh/AnimationPlayer
 @onready var anim_tree: AnimationTree = $AnimationTree
 @export var speed: float = 5.0
 var last_lean := 0.0
 const JUMP_VELOCITY = 4.5
+
+func handle_air(delta: float) -> void:
+  velocity += get_gravity() * delta
+#  handle_movement()
 
 func _physics_process(delta: float) -> void:
   if not is_on_floor():
@@ -30,6 +36,9 @@ func _physics_process(delta: float) -> void:
   move_and_slide()
   turn_to(direction)
   
+  choose_anim()
+  
+func choose_anim() -> void:
   var current_speed := velocity.length()
   const RUN_SPEED = 3.5
   const BLEND_SPEED := 0.2

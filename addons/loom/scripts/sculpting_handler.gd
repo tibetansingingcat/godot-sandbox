@@ -9,6 +9,7 @@ const SCULPT_SPEED = 0.05
 
 var dock_ui: Control
 var current_terrain_root: TerrainRoot
+var current_sector_node: SectorNode
 var is_sculpting := false
 
 var brush_preview: MeshInstance3D
@@ -25,6 +26,8 @@ var last_affected_sectors: Array[SectorNode] = []
 var undo_redo: EditorUndoRedoManager
 var sculpt_start_meshes: Dictionary[SectorNode, ArrayMesh] = {} # Store meshes at start of stroke
 
+var grid_lines_node: MeshInstance3D = null
+
 func _init():
   if Engine.is_editor_hint():
     undo_redo = EditorInterface.get_editor_undo_redo()
@@ -38,11 +41,17 @@ func _on_selection_changed():
   # Check if selected object is a TerrainRoot or child of one
   var selected = editor_selection.get_selected_nodes()
   current_terrain_root = null
+  current_sector_node = null  # Add this - clear it first
   
   for node in selected:
     if node is TerrainRoot:
       current_terrain_root = node
       print("Selected TerrainRoot: ", node.name)
+      break
+    if node is SectorNode:
+      current_sector_node = node
+      current_terrain_root = current_sector_node.get_parent()
+      print("Selected SectorNode: ", node.name)
       break
     var parent = node.get_parent()
     while parent:
@@ -54,8 +63,48 @@ func _on_selection_changed():
       
       if current_terrain_root:
         break
+        
+  # Clean up old grid
+  if grid_lines_node and grid_lines_node.get_parent():
+    grid_lines_node.get_parent().remove_child(grid_lines_node)
+    grid_lines_node.queue_free()
+    grid_lines_node = null
+    
+  if current_terrain_root and not current_sector_node:
+    print("Create sector grid")
+    create_sector_grid()
+    
+func create_sector_grid():
   if not current_terrain_root:
-    print("No TerrainRoot selected")
+    return
+  
+  grid_lines_node = MeshInstance3D.new()
+  var immediate_mesh = ImmediateMesh.new()
+  grid_lines_node.mesh = immediate_mesh
+  
+  immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+  
+  for x in range(current_terrain_root.sectors_x + 1):
+    var x_pos = x * current_terrain_root.sector_size_x
+    immediate_mesh.surface_add_vertex(Vector3(x_pos, 0.5, 0))
+    immediate_mesh.surface_add_vertex(Vector3(x_pos, 0.5, current_terrain_root.sectors_y * current_terrain_root.sector_size_y))
+    
+  for y in range(current_terrain_root.sectors_y + 1):
+    var z_pos = y * current_terrain_root.sector_size_y
+    immediate_mesh.surface_add_vertex(Vector3(0, 0.5, z_pos))
+    immediate_mesh.surface_add_vertex(Vector3(current_terrain_root.sectors_x * current_terrain_root.sector_size_x, 0.5, z_pos))
+    
+  immediate_mesh.surface_end()
+  
+  # Create unshaded material
+  var mat = StandardMaterial3D.new()
+  mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+  mat.albedo_color = Color.RED
+  grid_lines_node.material_override = mat
+  
+  current_terrain_root.add_child(grid_lines_node)
+  
+  
 
 func handles(object) -> bool:
   if object is TerrainRoot:
@@ -79,6 +128,19 @@ func get_sector_at_postion(world_pos: Vector3) -> SectorNode:
 
 func handle_3d_input(camera: Camera3D, event: InputEvent) -> int:
   if not current_terrain_root:
+    print("not current terrain root")
+    return EditorPlugin.AFTER_GUI_INPUT_PASS
+    
+  if tool == Tool.SELECT:
+    if event is InputEventMouseButton:
+      if event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
+        var hit_pos = get_terrain_hit_position(camera, event.position)
+        if hit_pos != Vector3.INF:
+          var clicked_sector = get_sector_at_postion(hit_pos)
+          if clicked_sector:
+            editor_selection.clear()
+            editor_selection.add_node(clicked_sector)
+            return EditorPlugin.AFTER_GUI_INPUT_STOP
     return EditorPlugin.AFTER_GUI_INPUT_PASS
   
   if event is InputEventMouseMotion:
@@ -184,10 +246,16 @@ func get_terrain_hit_position(camera: Camera3D, mouse_pos: Vector2) -> Vector3:
 
 func update_brush_preview(camera: Camera3D, mouse_pos: Vector2):
   if not current_terrain_root or not current_terrain_root.is_inside_tree():
+    if brush_preview:
+      current_terrain_root.remove_child(brush_preview)
+      brush_preview.queue_free()
     return
     
   if current_terrain_root.get_child_count() == 0:
     return
+    
+  if tool == Tool.SELECT and brush_preview:
+    brush_preview.visible = false
     
   var hit_pos = get_terrain_hit_position(camera, mouse_pos)
   if hit_pos != Vector3.INF:
@@ -198,7 +266,7 @@ func update_brush_preview(camera: Camera3D, mouse_pos: Vector2):
         brush_preview.get_parent().remove_child(brush_preview)
       current_terrain_root.add_child(brush_preview)
     if not brush_preview.owner:
-      brush_preview.owner = current_terrain_root
+      brush_preview.owner = current_terrain_root.owner
       
     brush_preview.global_position = hit_pos
     brush_preview.visible = true
@@ -211,6 +279,7 @@ func setup_brush_preview():
     return
     
   brush_preview = MeshInstance3D.new()
+  brush_preview.name = "Brush Preview"
   
   # Create a sphere mesh
   var sphere_mesh = SphereMesh.new()
@@ -287,32 +356,70 @@ func sculpt_at_position(camera: Camera3D, mouse_pos: Vector2):
   if hit_pos == Vector3.INF:
     return
     
-  var affected_sectors = get_sectors_in_brush(hit_pos)
+  var affected_sectors: Array[SectorNode] = []
+  
+  # Determine mode based on selection
+  var selected = editor_selection.get_selected_nodes()
+  var selected_sector: SectorNode = null
+  
+  for node in selected:
+    if node is SectorNode:
+      selected_sector = node
+      break
+  
+  if selected_sector:
+    affected_sectors = [selected_sector]
+  else:
+    affected_sectors = get_sectors_in_brush(hit_pos)
   
   for sector in affected_sectors:
-    modify_sector_mesh(sector, hit_pos)
+    modify_sector_mesh(sector, hit_pos, selected_sector != null) # Pass Border Protection Flag
     
-  synchronize_borders(affected_sectors)
+  if not selected_sector:
+    synchronize_borders(affected_sectors)
+    
   last_affected_sectors = affected_sectors
 
-func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3):
-  var nx = int(sector.sector_size_x / sector.resolution)
-  var ny = int(sector.sector_size_y / sector.resolution)
-  
+func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3, protect_borders: bool):
   if sector.variants.is_empty():
     print("ERROR: No variants available!")
     return
     
   var array_mesh: ArrayMesh = sector.variants[sector.active_variant].mesh
   var arrays = array_mesh.surface_get_arrays(0)
-  
   var vertices = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
   var local_pos = sector.to_local(world_hit_pos)
+  
+  var nx = int(sector.sector_size_x / sector.resolution)
+  var ny = int(sector.sector_size_y / sector.resolution)
+  
+  # Calculate buffer zone - how many vertices to skip from each edge
+  var buffer = 0
+  if protect_borders:
+    buffer = max(1, int(1.0 / sector.resolution)) # 0.25 res = 4 vertices
+  
   for i in range(vertices.size()):
     var vertex = vertices[i]
+    
+    # Convert flat index to grid coordinates
+    var x = i % (nx + 1) # We're finding the remainder after we divide by the length of x
+    var y = i / (nx + 1) # We're finding the number of times the length of x fully goes into i
+    
+    var edge_falloff = 1.0
+    if protect_borders and buffer > 0:
+      var edge_distance_x = min(x, nx - x)
+      var edge_distance_y = min(y, ny - y)
+      var edge_distance = min(edge_distance_x, edge_distance_y)
+      edge_falloff = clamp(float(edge_distance) / float(buffer), 0.0, 1.0)
+    
+    if protect_borders or tool == Tool.SMOOTH:
+      if x < buffer or x > nx - buffer or y < buffer or y > ny - buffer: continue
+      
     var distance = Vector2(vertex.x - local_pos.x, vertex.z - local_pos.z).length()
     var falloff = 1.0 - (distance / brush_size)
+    falloff *= edge_falloff
     if falloff < 0: continue
+    
     match tool:
       Tool.RAISE:
         vertex.y += brush_strength * falloff * SCULPT_SPEED
@@ -322,27 +429,13 @@ func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3):
         if local_pos.y != NAN:
           vertex.y = lerpf(vertex.y, local_pos.y, SCULPT_SPEED)
       Tool.SMOOTH:
-        # Convert flat index to grid coordinates
-        var x = i % (nx + 1) # We're finding the remainder after we divide by the length of x
-        var y = i / (nx + 1) # We're finding the number of times the length of x fully goes into i
         if x == 0 or x == nx or y == 0 or y == ny: continue
         var neighbor_sum = 0.0
-        var neighbor_count = 4
-        #if x > 0: # We have a neighbor vertex to the left
         neighbor_sum += vertices[i - 1].y
-        #neighbor_count += 1
-        #if x < nx: # We have a neighbor vertex to the right
         neighbor_sum += vertices[i + 1].y
-        #neighbor_count += 1
-        #if y > 0: # We have a neighbor vertex above
         neighbor_sum += vertices[i - (nx + 1)].y
-        #neighbor_count += 1
-        #if y < ny: # We have a neighbor vertex below
         neighbor_sum += vertices[i + (nx + 1)].y
-        #neighbor_count += 1
-        
-        #if neighbor_count > 0:
-        var average = neighbor_sum / neighbor_count
+        var average = neighbor_sum / 4
         vertex.y = lerpf(vertex.y, average, falloff * SCULPT_SPEED)
     vertices[i] = vertex
     

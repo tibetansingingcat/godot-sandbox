@@ -30,7 +30,6 @@ func setup_ui():
   title.add_theme_font_size_override("font_size", 16)
   vbox.add_child(title)
   
-  setup_mode_buttons()
   setup_tool_buttons()
   setup_brush_settings()
   
@@ -98,8 +97,8 @@ func setup_tool_buttons():
   tools_label.text = "Tool:"
   vbox.add_child(tools_label)
   
-  var tool_names = ["Raise", "Lower", "Smooth", "Flatten"]
-  var tool_values = [Tool.RAISE, Tool.LOWER, Tool.SMOOTH, Tool.FLATTEN]
+  var tool_names = ["Select", "Raise", "Lower", "Smooth", "Flatten"]
+  var tool_values = [Tool.SELECT, Tool.RAISE, Tool.LOWER, Tool.SMOOTH, Tool.FLATTEN]
   
   for i in range(tool_names.size()):
     var btn = Button.new()

@@ -10,5 +10,6 @@ enum Tool {
   RAISE,
   LOWER,
   SMOOTH,
-  FLATTEN
+  FLATTEN,
+  SELECT
 }

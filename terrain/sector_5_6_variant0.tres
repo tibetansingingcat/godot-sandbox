@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SectorVariant" load_steps=5 format=3 uid="uid://b3aaxenq2tnkk"]
+
+[ext_resource type="ArrayMesh" uid="uid://b3oanhcbv0pe0" path="res://terrain/sector_5_6_variant0_mesh.tres" id="1_nfcsb"]
+[ext_resource type="Script" uid="uid://srcwr1yvrdsa" path="res://addons/loom/scripts/variant_guarantee.gd" id="1_wwx46"]
+[ext_resource type="Script" uid="uid://b6hm8okroo3cf" path="res://addons/loom/scripts/variant_requirement.gd" id="2_cuniw"]
+[ext_resource type="Script" uid="uid://b5178r3pfyat3" path="res://addons/loom/scripts/sector_variant.gd" id="2_wwx46"]
+
+[resource]
+script = ExtResource("2_wwx46")
+mesh = ExtResource("1_nfcsb")

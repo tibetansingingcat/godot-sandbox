@@ -26,35 +26,29 @@ func _ready():
     return
   _ready_called = true
   
-  if Engine.is_editor_hint():
-    _initialize_sector.call_deferred()
+  _initialize_sector.call_deferred()
     
 func _initialize_sector():
-    var scene_root := get_tree().edited_scene_root
+    var scene_root := get_tree().edited_scene_root if Engine.is_editor_hint() else null
     print("Initializing sector")
     
     # CRITICAL: Remove any MeshInstance3D that was saced with the scene
-    for child in get_children():
-      if child is MeshInstance3D:
-        print("Removing stale MeshInstance3D from the scene tree")
-        child.owner = null
-        remove_child(child)
-        child.queue_free()
+    if Engine.is_editor_hint():
+      for child in get_children():
+        if child is MeshInstance3D:
+          print("Removing stale MeshInstance3D from the scene tree")
+          child.owner = null
+          remove_child(child)
+          child.queue_free()
         
-    mesh_instance = MeshInstance3D.new()
+    if not mesh_instance:
+      mesh_instance = MeshInstance3D.new()
     
-    ## Check if mesh_instance already exists as a child (loaded from scene)
-    #if not mesh_instance:
-      #mesh_instance = MeshInstance3D.new()
-      #add_child(mesh_instance)
-      #if scene_root:
-        #mesh_instance.owner = scene_root
-          
     # Always ensure material is set up
     if not terrain_material:
       setup_terrain_material()
       
-    if not self.owner and scene_root:
+    if Engine.is_editor_hint() and not self.owner and scene_root:
       self.owner = scene_root
       
     # Try to load saved variants
@@ -75,7 +69,7 @@ func _initialize_sector():
     if not variants.is_empty():
       set_variant(active_variant)
       freshly_created = false
-    elif freshly_created:
+    elif Engine.is_editor_hint() and freshly_created:
       print("Creating first variant")
       create_variant()
       freshly_created = false
@@ -261,6 +255,16 @@ func set_variant(index: int):
   mesh_instance.mesh = v.mesh
   if terrain_material:
     mesh_instance.material_override = terrain_material
+    
+  # Create collision
+  if mesh_instance.mesh:
+    # Remove old collision
+    for child in mesh_instance.get_children():
+      mesh_instance.remove_child(child)
+      child.queue_free()
+      
+    mesh_instance.create_trimesh_collision()
+
 
   # --- 4. Restore children from scene
   var children_path = "res://terrain/sector_%d_%d_variant%d_children.tscn" % [sector_coords.x, sector_coords.y, active_variant]
@@ -276,6 +280,36 @@ func set_variant(index: int):
   
 func cycle_variant():
   set_variant((active_variant + 1) % variants.size())
+  
+func remove_variant(idx: int):
+  if idx < 0 or idx >= variants.size():
+    push_error("Invalid variant index for deletion: %d", idx)
+    return
+  
+  if variants.size() <= 1:
+    push_error("Can't remove last variant.")
+    return
+    
+  var mesh_path = "res://terrain/sector_%d_%d_variant%d_mesh.tres" % [sector_coords.x, sector_coords.y, idx]
+  var children_path = "res://terrain/sector_%d_%d_variant%d_children.tscn" % [sector_coords.x, sector_coords.y, idx]
+  var variant_path = "res://terrain/sector_%d_%d_variant%d.tres" % [sector_coords.x, sector_coords.y, idx]
+  
+  if FileAccess.file_exists(mesh_path):
+    DirAccess.remove_absolute(mesh_path)
+  if FileAccess.file_exists(children_path):
+    DirAccess.remove_absolute(children_path)
+  if FileAccess.file_exists(variant_path):
+    DirAccess.remove_absolute(variant_path)
+    
+  variants.remove_at(idx)
+  
+  if active_variant >= variants.size():
+    active_variant = variants.size() - 1
+    
+  set_variant(active_variant)
+  
+  emit_signal("variants_changed")
+  
   
 func refresh_mesh_display():
   print("Refreshing mesh display")
