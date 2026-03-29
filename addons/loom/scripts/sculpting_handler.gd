@@ -424,7 +424,11 @@ func sculpt_at_position(camera: Camera3D, mouse_pos: Vector2):
     modify_sector_mesh(sector, hit_pos, selected_sector != null)
 
   if not selected_sector:
-    synchronize_borders(affected_sectors)
+    var synced_neighbors = synchronize_borders(affected_sectors)
+    # Include synced neighbors so their collision gets rebuilt on mouse-up
+    for neighbor in synced_neighbors:
+      if neighbor not in affected_sectors:
+        affected_sectors.append(neighbor)
 
   last_affected_sectors = affected_sectors
 
@@ -551,15 +555,42 @@ func get_neighbor_direction(sector: SectorNode, other: SectorNode) -> String:
     elif other_y == sector_y - 1: return "north"
   return "not_neighbor"
 
-func synchronize_borders(affected_sectors: Array[SectorNode]):
-  ## For every pair of affected sectors that share a cardinal edge,
-  ## synchronize the border vertices so seams don't appear.
+func synchronize_borders(affected_sectors: Array[SectorNode]) -> Array[SectorNode]:
+  ## Synchronize border vertices so seams don't appear after sculpting.
+  ## Returns any non-affected neighbors that were synced (so their collision
+  ## can be rebuilt too).
+  ##
+  ## Two passes:
+  ##   1. Sync borders between pairs of affected sectors (both were sculpted,
+  ##      so the sculpted sector's edge heights are copied to its neighbor).
+  ##   2. Sync each affected sector's edges with NON-affected neighbors.
+  ##      Without this, sectors just outside the brush keep their old border
+  ##      heights while the sculpted side was raised/lowered, creating spikes.
+  var synced_neighbors: Array[SectorNode] = []
+
+  # Pass 1: sync between affected sectors
   for sector in affected_sectors:
     for other in affected_sectors:
       if sector == other: continue
       var direction = get_neighbor_direction(sector, other)
       if direction in ["north", "south", "east", "west"]:
         synchronize_border_edge(sector, other, direction)
+
+  # Pass 2: sync affected sectors with their non-affected cardinal neighbors
+  for sector in affected_sectors:
+    for dir in ["north", "south", "east", "west"]:
+      var neighbor_coords = get_neighbor_sector(sector.sector_coords, dir)
+      if not is_valid_sector(neighbor_coords):
+        continue
+      var neighbor = current_terrain_root.get_sector(neighbor_coords.x, neighbor_coords.y)
+      if neighbor in affected_sectors:
+        continue  # Already handled in pass 1
+      # Sculpted sector pushes its edge heights to the untouched neighbor
+      synchronize_border_edge(sector, neighbor, dir)
+      if neighbor not in synced_neighbors:
+        synced_neighbors.append(neighbor)
+
+  return synced_neighbors
 
 func synchronize_border_edge(sector: SectorNode, other: SectorNode, direction: String):
   ## Copy the sculpted sector's edge vertex heights to the neighbor's matching edge.
@@ -656,7 +687,7 @@ func calculate_normals(vertices: PackedVector3Array, indices: PackedInt32Array) 
 
     var edge1 = v1 - v0
     var edge2 = v2 - v0
-    var face_normal = edge1.cross(edge2)
+    var face_normal = edge2.cross(edge1)
     if face_normal.length_squared() > 0.0001:
       normals[i0] += face_normal
       normals[i1] += face_normal
