@@ -1,19 +1,30 @@
+## sector_node_inspector.gd — Custom inspector UI for SectorNode
+##
+## When a SectorNode is selected, this plugin adds controls to the Inspector:
+##   - "Create variant" button
+##   - "Save Node" buttons (current variant / all variants)
+##   - Variant list with name editing, set-active, and remove buttons
+##   - Relationships panel showing requirements and guarantees per variant
+##
+## Listens to SectorNode's variants_changed and active_variant_changed signals
+## to rebuild the UI when the data changes.
 @tool
 extends EditorInspectorPlugin
 
 var sector: SectorNode
-var variants_box: VBoxContainer
-var relationships_box: VBoxContainer
+var variants_box: VBoxContainer       ## Container for the variant list UI
+var relationships_box: VBoxContainer  ## Container for requirements/guarantees UI
 
-var variant_list = []
-var dialog = ConfirmationDialog.new()
+var variant_list = []                 ## Temp list used when populating the relationship dialog
+var dialog = ConfirmationDialog.new() ## Shared dialog for adding requirements/guarantees
 
 func _init() -> void:
+  # Attach dialog to the editor's base control so it can display as a popup
   EditorInterface.get_base_control().add_child(dialog)
 
 func _can_handle(obj):
   return obj is SectorNode
-  
+
 func _parse_begin(obj):
   sector = obj as SectorNode
   add_controls()
@@ -116,6 +127,7 @@ func _rebuild_variants_ui():
         variants_box.add_child(row)
 
 func _parse_property(object: Object, type: Variant.Type, name: String, hint_type: PropertyHint, hint_string: String, usage_flags: int, wide: bool):
+  # Hide the raw "variants" array from the default inspector — we show our own UI instead
   if object is SectorNode and name == "variants":
     return true
   return false

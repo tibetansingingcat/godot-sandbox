@@ -1,3 +1,12 @@
+## sculpt_dock.gd — Persistent dock panel for sculpting controls
+##
+## Lives in the top-left dock slot of the editor. Contains:
+##   - Tool selection buttons (Select, Raise, Lower, Smooth, Flatten)
+##   - Brush size and strength sliders
+##
+## When a button/slider changes, the dock calls the corresponding method
+## on sculpting_handler (set_tool, set_brush_size, etc). The handler
+## reference is set by loom.gd after both are created.
 @tool
 extends Control
 
@@ -9,12 +18,11 @@ var current_tool := Tool.RAISE
 var brush_size := 2.0
 var brush_strength := 1.0
 
-# UI elements
 var mode_buttons: Array[Button] = []
 var tool_buttons: Array[Button] = []
 var vbox: VBoxContainer
 
-var sculpting_handler: SculptingHandler
+var sculpting_handler: SculptingHandler  ## Set by loom.gd after construction
 
 func _init():
   name = "Terrain Sculpting"
