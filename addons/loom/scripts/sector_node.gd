@@ -283,7 +283,7 @@ func cycle_variant():
   
 func remove_variant(idx: int):
   if idx < 0 or idx >= variants.size():
-    push_error("Invalid variant index for deletion: %d", idx)
+    push_error("Invalid variant index for deletion: %d" % idx)
     return
   
   if variants.size() <= 1:
@@ -293,14 +293,24 @@ func remove_variant(idx: int):
   var mesh_path = "res://terrain/sector_%d_%d_variant%d_mesh.tres" % [sector_coords.x, sector_coords.y, idx]
   var children_path = "res://terrain/sector_%d_%d_variant%d_children.tscn" % [sector_coords.x, sector_coords.y, idx]
   var variant_path = "res://terrain/sector_%d_%d_variant%d.tres" % [sector_coords.x, sector_coords.y, idx]
-  
+
   if FileAccess.file_exists(mesh_path):
     DirAccess.remove_absolute(mesh_path)
   if FileAccess.file_exists(children_path):
     DirAccess.remove_absolute(children_path)
   if FileAccess.file_exists(variant_path):
     DirAccess.remove_absolute(variant_path)
-    
+
+  # Rename files above the deleted index down by one so indices stay contiguous
+  for i in range(idx + 1, variants.size()):
+    var sx = sector_coords.x
+    var sy = sector_coords.y
+    for suffix in ["_mesh.tres", "_children.tscn", ".tres"]:
+      var old_path = "res://terrain/sector_%d_%d_variant%d%s" % [sx, sy, i, suffix]
+      var new_path = "res://terrain/sector_%d_%d_variant%d%s" % [sx, sy, i - 1, suffix]
+      if FileAccess.file_exists(old_path):
+        DirAccess.rename_absolute(old_path, new_path)
+
   variants.remove_at(idx)
   
   if active_variant >= variants.size():

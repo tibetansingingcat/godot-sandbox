@@ -4,7 +4,7 @@ extends RigidBody3D
 @export var water_drag := 0.05
 @export var water_angular_drag := 0.05
 
-@onready var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
+@onready var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 const water_height := 0.0
 

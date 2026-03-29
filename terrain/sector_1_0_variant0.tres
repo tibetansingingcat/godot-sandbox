@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SectorVariant" load_steps=7 format=3 uid="uid://cg68bus3dqrir"]
+[gd_resource type="Resource" script_class="SectorVariant" format=3 uid="uid://cg68bus3dqrir"]
 
 [ext_resource type="ArrayMesh" uid="uid://cj6tc8nlktdee" path="res://terrain/sector_1_0_variant0_mesh.tres" id="1_2i8e8"]
 [ext_resource type="Script" uid="uid://srcwr1yvrdsa" path="res://addons/loom/scripts/variant_guarantee.gd" id="1_kdadf"]

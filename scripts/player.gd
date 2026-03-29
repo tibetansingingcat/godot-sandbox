@@ -36,9 +36,9 @@ func _physics_process(delta: float) -> void:
   move_and_slide()
   turn_to(direction)
   
-  choose_anim()
+  choose_anim(direction)
   
-func choose_anim() -> void:
+func choose_anim(direction: Vector3) -> void:
   var current_speed := velocity.length()
   const RUN_SPEED = 3.5
   const BLEND_SPEED := 0.2

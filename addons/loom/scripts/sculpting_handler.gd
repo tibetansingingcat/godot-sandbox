@@ -53,6 +53,7 @@ func _on_selection_changed():
       current_terrain_root = current_sector_node.get_parent()
       print("Selected SectorNode: ", node.name)
       break
+
     var parent = node.get_parent()
     while parent:
       if parent is TerrainRoot:
@@ -60,9 +61,8 @@ func _on_selection_changed():
         print("Selected TerrainRoot: ", parent.name)
         break
       parent = parent.get_parent()
-      
-      if current_terrain_root:
-        break
+    if current_terrain_root:
+      break
         
   # Clean up old grid
   if grid_lines_node and grid_lines_node.get_parent():
@@ -247,7 +247,7 @@ func get_terrain_hit_position(camera: Camera3D, mouse_pos: Vector2) -> Vector3:
 func update_brush_preview(camera: Camera3D, mouse_pos: Vector2):
   if not current_terrain_root or not current_terrain_root.is_inside_tree():
     if brush_preview:
-      current_terrain_root.remove_child(brush_preview)
+      brush_preview.get_parent().remove_child(brush_preview)
       brush_preview.queue_free()
     return
     
@@ -426,7 +426,7 @@ func modify_sector_mesh(sector: SectorNode, world_hit_pos: Vector3, protect_bord
       Tool.LOWER:
         vertex.y -= brush_strength * falloff * SCULPT_SPEED
       Tool.FLATTEN:
-        if local_pos.y != NAN:
+        if not is_nan(local_pos.y):
           vertex.y = lerpf(vertex.y, local_pos.y, SCULPT_SPEED)
       Tool.SMOOTH:
         if x == 0 or x == nx or y == 0 or y == ny: continue
@@ -588,7 +588,7 @@ func calculate_normals(vertices: PackedVector3Array, indices: PackedInt32Array) 
     
     var edge1 = v1 - v0
     var edge2 = v2 - v0
-    var face_normal = edge2.cross(edge1)
+    var face_normal = edge1.cross(edge2)
     if face_normal.length_squared() > 0.0001:
       normals[i0] += face_normal
       normals[i1] += face_normal

@@ -16,15 +16,15 @@ var locked := false
 
 func _ready():
   if Engine.is_editor_hint():
-    sector_size_x = size_x / sectors_x
-    sector_size_y = size_y / sectors_y
-    
+    #sector_size_x = size_x / sectors_x
+    #sector_size_y = size_y / sectors_y
+
     sectors.clear()
     for child in get_children():
       if child is SectorNode:
         sectors.append(child)
-  
-    
+
+
 
 func build_grid():
   print("Building grid...")
@@ -44,18 +44,18 @@ func build_grid():
       add_child(sector)
       sector.owner = self.owner
       sectors.append(sector)
-  
+
 func clear_sectors():
   for s in sectors:
     s.queue_free()
   sectors.clear()
-  
+
 func save():
   for s in sectors:
     s.save_all()
 
 func index(x: int, y: int) -> int:
   return y * sectors_x + x
-  
+
 func get_sector(x: int, y: int) -> SectorNode:
   return sectors[index(x, y)]

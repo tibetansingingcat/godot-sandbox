@@ -111,13 +111,13 @@ func setup_tool_buttons():
     tool_buttons.append(btn)
 
 func _on_mode_changed(pressed: bool, mode: SculptMode):
-  if pressed:
+  if pressed and sculpting_handler:
     current_mode = mode
     sculpting_handler.set_sculpt_mode(mode)
     print("Mode changed to ", mode)
     
 func _on_tool_changed(pressed: bool, tool: Tool):
-  if pressed:
+  if pressed and sculpting_handler:
     current_tool = tool
     sculpting_handler.set_tool(tool)
     print("Tool changed to ", tool)

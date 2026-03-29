@@ -16,7 +16,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
   var look_input := Input.get_vector("view_right", "view_left", "view_down", "view_up")
   look_input *= turn_rate * delta
-  look_input = mouse_input
+  look_input += mouse_input
   mouse_input = Vector2()
   
   rotation_degrees.x += look_input.y

@@ -261,7 +261,11 @@ func _show_relationship_dialog(variant: SectorVariant, type: DialogType):
   vbox.add_child(options)
   
   dialog.add_child(vbox)
-  
+
+  # Disconnect any stale confirmed handlers from previous cancel/close
+  for conn in dialog.confirmed.get_connections():
+    dialog.confirmed.disconnect(conn.callable)
+
   # Connect confirmed
   dialog.confirmed.connect(func():
     if type == DialogType.REQUIREMENT:
